@@ -1,0 +1,14 @@
+version: '3'
+
+tasks:
+  build:
+    cmds:
+      - docker-compose build library-managment-app
+  run:
+    cmds:
+      - docker-compose up library-managment-app
+      #- task: migrate-up
+      # это гавно не работает почему-то, task migrate-up нужно запускать отдельно
+  migrate-up:
+    cmds:
+      - migrate -path ./migrations -database postgres://postgres:qwerty123456@localhost:5432/postgres?sslmode=disable up

@@ -1,0 +1,29 @@
+version: '3.8'
+
+services:
+  library-managment-app:
+    container_name: lm-app
+    # ищет докер-файл на основании которого соберет изображение для запуска контейнера  
+    build: ./
+    command: ./bin
+    ports:
+      - 8000:8000
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      - DB_PASSWORD=qwerty123456
+    restart: unless-stopped
+
+  db:
+    restart: unless-stopped
+    image: postgres
+    volumes:
+      # до доветочия - директива куда будут сохраняться данные, после - путь до папки в контейнере
+      - ./data:/var/lib/postgresql/data 
+    environment:
+      - POSTGRES_PASSWORD=qwerty123456
+    ports:
+      - 5432:5432
+    healthcheck:
+      test: "exit 0"
