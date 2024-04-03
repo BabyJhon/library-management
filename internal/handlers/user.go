@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"net/http"
 	"strconv"
 
@@ -16,7 +17,7 @@ func (h *Handler) createUser(c *gin.Context) {
 		return
 	}
 
-	id, err := h.services.User.CreateUser(inPut)
+	id, err := h.services.User.CreateUser(context.Background(), inPut)
 	if err != nil {
 		newErrorResponse(c, http.StatusInternalServerError, err.Error())
 		return
@@ -36,7 +37,7 @@ func (h *Handler) getUser(c *gin.Context) {
 		return
 	}
 
-	user, err := h.services.User.GetUser(id)
+	user, err := h.services.User.GetUser(context.Background(), id)
 	if err != nil {
 		newErrorResponse(c, http.StatusInternalServerError, err.Error())
 		return
@@ -56,7 +57,7 @@ func (h *Handler) deleteUser(c *gin.Context) {
 		return
 	}
 
-	err = h.services.User.DeleteUser(id)
+	err = h.services.User.DeleteUser(context.Background(), id)
 	if err != nil {
 		newErrorResponse(c, http.StatusInternalServerError, err.Error())
 		return

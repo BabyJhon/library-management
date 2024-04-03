@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"net/http"
 	"strconv"
 
@@ -19,7 +20,7 @@ func (h *Handler) giveBook(c *gin.Context) {
 		return
 	}
 
-	id, err := h.services.Book.GiveBookToUser(user_id, book_id)
+	id, err := h.services.Book.GiveBookToUser(context.Background(), user_id, book_id)
 	if err != nil {
 		newErrorResponse(c, http.StatusInternalServerError, err.Error())
 	}
@@ -41,7 +42,7 @@ func (h *Handler) returnBook(c *gin.Context) {
 		return
 	}
 
-	err = h.services.Book.ReturnBookFromUser(user_id, book_id)
+	err = h.services.Book.ReturnBookFromUser(context.Background(), user_id, book_id)
 	if err != nil {
 		newErrorResponse(c, http.StatusInternalServerError, err.Error())
 		return
@@ -57,7 +58,7 @@ func (h *Handler) getBooksByUser(c *gin.Context) {
 		return
 	}
 
-	books, err := h.services.Book.GetBooksByUser(id)
+	books, err := h.services.Book.GetBooksByUser(context.Background(), id)
 	if err != nil {
 		newErrorResponse(c, http.StatusInternalServerError, err.Error())
 		return

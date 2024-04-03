@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"net/http"
 	"strconv"
 
@@ -9,7 +10,7 @@ import (
 )
 
 func (h *Handler) getAllBooks(c *gin.Context) {
-	books, err := h.services.Book.GetAllBooks()
+	books, err := h.services.Book.GetAllBooks(context.Background())
 	if err != nil {
 		newErrorResponse(c, http.StatusInternalServerError, err.Error())
 	}
@@ -24,19 +25,14 @@ func (h *Handler) getBookById(c *gin.Context) {
 		return
 	}
 
-	book, err := h.services.Book.GetBook(id)
+	book, err := h.services.Book.GetBook(context.Background(), id)
 	if err != nil {
 		newErrorResponse(c, http.StatusInternalServerError, err.Error())
 		return
 	}
-	c.JSON(http.StatusOK, map[string]interface{}{
-		"id":         book.Id,
-		"title":      book.Title,
-		"author":     book.Author,
-		"in_library": book.InLibrary,
-	})
-}
 
+	c.JSON(http.StatusOK, book)
+}
 
 func (h *Handler) deleteBookById(c *gin.Context) {
 	id, err := strconv.Atoi(c.Param("id"))
@@ -45,7 +41,7 @@ func (h *Handler) deleteBookById(c *gin.Context) {
 		return
 	}
 
-	err = h.services.Book.DeleteBook(id)
+	err = h.services.Book.DeleteBook(context.Background(), id)
 	if err != nil {
 		newErrorResponse(c, http.StatusInternalServerError, err.Error())
 		return
@@ -62,7 +58,7 @@ func (h *Handler) createBook(c *gin.Context) {
 		return
 	}
 
-	id, err := h.services.Book.CreateBook(inPut)
+	id, err := h.services.Book.CreateBook(context.Background(), inPut)
 	if err != nil {
 		newErrorResponse(c, http.StatusInternalServerError, err.Error())
 		return

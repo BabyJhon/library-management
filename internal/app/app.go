@@ -36,7 +36,7 @@ func Run() {
 	}
 
 	//DB
-	db, err := postgres.NewPostgresDB(postgres.Config{
+	pool, err := postgres.NewPG(context.Background(), postgres.Config{
 		Host:     viper.GetString("db.host"),
 		Port:     viper.GetString("db.port"),
 		Username: viper.GetString("db.username"),
@@ -45,11 +45,13 @@ func Run() {
 		SSLMode:  viper.GetString("db.sslmode"),
 	})
 	if err != nil {
-		logrus.Fatalf("hui hui hui failed init db: %s", err.Error())
+		logrus.Fatalf("failed init db: %s", err.Error())
 	}
 
+	defer pool.Close()
+
 	// Repositories
-	repos := repo.NewRepository(db)
+	repos := repo.NewRepository(pool)
 
 	// Service
 	services := service.NewService(repos)
@@ -58,7 +60,7 @@ func Run() {
 	handlers := handlers.NewHandler(services)
 
 	//HTTP server
-	fmt.Println("start server")
+	fmt.Println("start server eshkere")
 
 	srv := new(httpserver.Server)
 
@@ -68,8 +70,9 @@ func Run() {
 		}
 	}()
 
-	logrus.Print("library-managment api started")
+	logrus.Print("library-management api started")
 
+	//gracefull shutdown
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGTERM, syscall.SIGINT)
 	<-quit
@@ -79,7 +82,4 @@ func Run() {
 		logrus.Errorf("error while server shutting down: %s", err.Error())
 	}
 
-	if err = db.Close(); err != nil {
-		logrus.Errorf("error while data base closing: %s", err)
-	}
 }

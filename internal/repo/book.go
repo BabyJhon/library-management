@@ -1,162 +1,201 @@
 package repo
 
 import (
+	"context"
 	"errors"
 	"fmt"
 
 	"github.com/BabyJhon/library-managment/internal/entity"
 	"github.com/BabyJhon/library-managment/pkg/postgres"
-	"github.com/jmoiron/sqlx"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type BookRepo struct {
-	db *sqlx.DB
+	db *pgxpool.Pool
 }
 
-func NewBookRepo(db *sqlx.DB) *BookRepo {
+func NewBookRepo(db *pgxpool.Pool) *BookRepo {
 	return &BookRepo{
 		db: db,
 	}
 }
 
-func (u *BookRepo) CreateBook(book entity.Book) (int, error) {
+func (u *BookRepo) CreateBook(ctx context.Context, book entity.Book) (int, error) {
 	var id int
 	query := fmt.Sprintf("INSERT INTO %s (title, author, in_library) values ($1, $2, $3) RETURNING id", postgres.BooksTable)
-	row := u.db.QueryRow(query, book.Title, book.Author, book.InLibrary)
+
+	row := u.db.QueryRow(ctx, query, book.Title, book.Author, book.InLibrary)
 	if err := row.Scan(&id); err != nil {
 		return 0, err
 	}
+
 	return id, nil
 }
 
-func (b *BookRepo) DeleteBook(id int) error {
+func (b *BookRepo) DeleteBook(ctx context.Context, id int) error {
 	query := fmt.Sprintf("DELETE FROM %s WHERE id = $1", postgres.BooksTable)
-	_, err := b.db.Exec(query, id)
-	return err
+	row, err := b.db.Exec(ctx, query, id)
+	if err != nil {
+		return err
+	}
+
+	rowsAffected := row.RowsAffected()
+	if rowsAffected == 0 {
+		return ErrBookNotFound
+	}
+
+	return nil
 }
 
-func (b *BookRepo) GetBook(id int) (entity.Book, error) {
+func (b *BookRepo) GetBook(ctx context.Context, id int) (entity.Book, error) {
 	var book entity.Book
 	query := fmt.Sprintf("SELECT * FROM %s WHERE id = $1", postgres.BooksTable)
-	err := b.db.Get(&book, query, id)
-	return book, err
+
+	row := b.db.QueryRow(ctx, query, id)
+	if err := row.Scan(&book.Id, &book.Title, &book.Author, &book.InLibrary); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return entity.Book{}, ErrBookNotFound
+		}
+		return entity.Book{}, err
+	}
+
+	return book, nil
 }
 
-func (b *BookRepo) GetAllBooks() ([]entity.Book, error) {
+func (b *BookRepo) GetAllBooks(ctx context.Context) ([]entity.Book, error) {
 	var books []entity.Book
 	query := fmt.Sprintf("SELECT * FROM %s", postgres.BooksTable)
-	err := b.db.Select(&books, query)
-	return books, err
+
+	rows, err := b.db.Query(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var book entity.Book
+		if err := rows.Scan(&book.Id, &book.Title, &book.Author, &book.InLibrary); err != nil {
+			return nil, err
+		}
+		books = append(books, book)
+	}
+
+	return books, nil
 }
 
-func (b *BookRepo) isBookInLibrary(bookId int) (bool, error) {
+func (b *BookRepo) isBookInLibrary(ctx context.Context, bookId int) (bool, error) {
 	var inLib bool
 	query := fmt.Sprintf("SELECT in_library FROM %s WHERE id = $1", postgres.BooksTable)
-	err := b.db.Get(&inLib, query, bookId)
-	return inLib, err
+
+	row := b.db.QueryRow(ctx, query, bookId)
+	if err := row.Scan(&inLib); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return false, ErrBookNotFound
+		}
+		return false, err
+	}
+	return inLib, nil
 }
 
-func (b *BookRepo) AddBookToUser(userId, bookId int) (int, error) { //вернет id вставки
-	tx, err := b.db.Begin()
+func (b *BookRepo) AddBookToUser(ctx context.Context, userId, bookId int) (int, error) { //вернет id вставки
+	tx, err := b.db.Begin(ctx)
 	if err != nil {
 		return 0, err
 	}
 
-	inLib, err := b.isBookInLibrary(bookId)
+	inLib, err := b.isBookInLibrary(ctx, bookId)
 	if err != nil {
 		return 0, err
 	}
-	if !inLib { //книга не в библиотеке
-		return 0, errors.New("the book is not in the library")
+	if !inLib { //случилась ситуация, когда хотим выдать пользователю книгу, которая не в библиотеке
+		return 0, ErrBookNotInLibrary
 	}
 
 	setBookNotInLibraryQuery := fmt.Sprintf("UPDATE %s SET in_library = false WHERE id = $1", postgres.BooksTable)
-	_, err = tx.Exec(setBookNotInLibraryQuery, bookId)
+	_, err = tx.Exec(ctx, setBookNotInLibraryQuery, bookId)
 	if err != nil {
-		tx.Rollback()
+		tx.Rollback(ctx)
 		return 0, err
 	}
 
 	var id int
 	query := fmt.Sprintf("INSERT INTO %s (user_id, book_id) values ($1, $2) RETURNING id", postgres.UsersBooksTable)
 
-	row := tx.QueryRow(query, userId, bookId)
+	row := tx.QueryRow(ctx, query, userId, bookId)
 	if err := row.Scan(&id); err != nil {
-		tx.Rollback()
+		tx.Rollback(ctx)
 		return 0, err
 	}
-	return id, tx.Commit()
+
+	return id, tx.Commit(ctx)
 }
 
-func (b *BookRepo) DeleteBookFromUser(userId, bookId int) error {
-	tx, err := b.db.Begin()
+func (b *BookRepo) DeleteBookFromUser(ctx context.Context, userId, bookId int) error {
+	tx, err := b.db.Begin(ctx)
 	if err != nil {
 		return err
 	}
 
-	inLib, err := b.isBookInLibrary(bookId)
+	inLib, err := b.isBookInLibrary(ctx, bookId)
 	if err != nil {
 		return err
 	}
 	if inLib {
-		return errors.New("the book is in the library")
+		return ErrBookInLibrary
 	}
 
 	setBookInLibraryQuery := fmt.Sprintf("UPDATE %s SET in_library = true WHERE id = $1", postgres.BooksTable)
-	_, err = tx.Exec(setBookInLibraryQuery, bookId)
+	_, err = tx.Exec(ctx, setBookInLibraryQuery, bookId)
 	if err != nil {
-		tx.Rollback()
+		tx.Rollback(ctx)
 		return err
 	}
 
 	query := fmt.Sprintf("DELETE FROM %s WHERE user_id = $1 AND book_id = $2", postgres.UsersBooksTable)
-	res, err := tx.Exec(query, userId, bookId)
+	res, err := tx.Exec(ctx, query, userId, bookId)
 
 	if err != nil {
-		tx.Rollback()
+		tx.Rollback(ctx)
 		return err
 	}
-	count, err := res.RowsAffected()
-	if err != nil {
-		tx.Rollback()
-		return err
+	rowsAffected := res.RowsAffected() //случай, когда книга существует, не в библиотеке, но не числится у пользователя(мб. у другого)
+	if rowsAffected == 0 {
+		tx.Rollback(ctx)
+		return ErrUserDoesNotHaveBook
 	}
-	if count == 0 {
-		tx.Rollback()
-		return errors.New("the user does not have this book")
-	}
-	//var deletedCount int //для случая, когда пытаемся удалить книгу у пользователя А, хотя она взята у пользователя Б(книга не в библиотеке, пользователи существуют)
-	//QueryRow в таком случае вернет 0 т.к. пользователи книги не совпадудт, а не ошибку, поэтому нужна доп проверка
-	// err = row.Scan(&deletedCount);
-	// TODO
-	// надо реализовать удаление и проверку, что что-то удалилось
-	// if err != nil {
-	// 	tx.Rollback()
-	// 	fmt.Println("privet epta")
-	// 	return err
-	// }
-	// if row == 0 {
-	// 	tx.Rollback()
-	// 	return errors.New("no rows deleted")
-	// }
 
-	return tx.Commit()
+	return tx.Commit(ctx)
 }
 
-func (b *BookRepo) GetBooksByUser(userId int) ([]entity.Book, error) {
+func (b *BookRepo) GetBooksByUser(ctx context.Context, userId int) ([]entity.Book, error) {
+	//получаем id книг из id пользователя
 	var books_id []int
 	idQuery := fmt.Sprintf("SELECT book_id FROM %s WHERE user_id = $1", postgres.UsersBooksTable)
-	err := b.db.Select(&books_id, idQuery, userId)
+
+	rows, err := b.db.Query(ctx, idQuery, userId)
 	if err != nil {
 		return nil, err
 	}
+	defer rows.Close()
 
+	for rows.Next() {
+		var id int
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		books_id = append(books_id, id)
+	}
+
+	//получаем книги по их id
 	var books []entity.Book
-	var book entity.Book
-	for _, bookId := range books_id {
+
+	for _, id := range books_id {
+		var book entity.Book
 		bookQuery := fmt.Sprintf("SELECT * FROM %s WHERE id = $1", postgres.BooksTable)
-		err := b.db.Get(&book, bookQuery, bookId)
-		if err != nil {
+
+		row := b.db.QueryRow(ctx, bookQuery, id)
+		if err := row.Scan(&book.Id, &book.Title, &book.Author, &book.InLibrary); err != nil {
 			return nil, err
 		}
 		books = append(books, book)
