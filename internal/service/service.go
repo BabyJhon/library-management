@@ -23,14 +23,22 @@ type Book interface {
 	GetBooksByUser(ctx context.Context, userId int) ([]entity.Book, error)
 }
 
+type Authorization interface {
+	CreateAdmin(ctx context.Context, admin entity.Admin) (int, error)
+	GenerateToken(ctx context.Context, userName, password string) (string, error)
+	Parsetoken(token string) (int, error)
+}
+
 type Service struct {
 	Book
 	User
+	Authorization
 }
 
 func NewService(repos *repo.Repository) *Service {
 	return &Service{
-		User: NewUserService(repos),
-		Book: NewBookService(repos),
+		User:          NewUserService(repos),
+		Book:          NewBookService(repos),
+		Authorization: NewAuthService(repos),
 	}
 }

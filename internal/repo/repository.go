@@ -25,14 +25,21 @@ type User interface {
 	DeleteUser(ctx context.Context, id int) error
 }
 
+type Authorization interface {
+	CreateAdmin(c context.Context, input entity.Admin) (int, error)
+	GetAdmin(c context.Context, userName, password string) (entity.Admin, error)
+}
+
 type Repository struct {
 	Book
 	User
+	Authorization
 }
 
 func NewRepository(db *pgxpool.Pool) *Repository {
 	return &Repository{
-		User: NewUserRepo(db),
-		Book: NewBookRepo(db),
+		User:          NewUserRepo(db),
+		Book:          NewBookRepo(db),
+		Authorization: NewAuthRepo(db),
 	}
 }

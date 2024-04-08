@@ -19,3 +19,11 @@ CREATE TABLE users_books (
     book_id int,
     FOREIGN KEY (book_id) REFERENCES books(id) ON DELETE CASCADE
 );
+
+CREATE TABLE admins (
+    id SERIAL PRIMARY KEY,
+    name varchar(255) NOT NULL,
+    sure_name varchar(255) NOT NULL,
+    user_name varchar(255) NOT NULL,
+    password_hash varchar(255) NOT NULL
+)

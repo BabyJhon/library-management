@@ -8,4 +8,5 @@ var (
 	ErrBookInLibrary       = errors.New("the book is already in library")
 	ErrBookNotInLibrary    = errors.New("the book is not in the library")
 	ErrUserDoesNotHaveBook = errors.New("the user does not have this book")
+	ErrAdminnotFound       = errors.New("admin not found")
 )
