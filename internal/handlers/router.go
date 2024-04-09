@@ -13,7 +13,7 @@ func NewHandler(services *service.Service) *Handler {
 	return &Handler{services: services}
 }
 
-func (h *Handler) InitRoutes() *gin.Engine { //Engine is the framework's instance, it contains the muxer, middleware and configuration settings
+func (h *Handler) InitRoutes() *gin.Engine {
 	router := gin.New()
 
 	admins := router.Group("/auth")
@@ -25,30 +25,26 @@ func (h *Handler) InitRoutes() *gin.Engine { //Engine is the framework's instanc
 	api := router.Group("/api/v1", h.AdminIdentity)
 	{
 
-		users := api.Group("/users") //для таблицы юзеров
+		users := api.Group("/users") 
 		{
-			users.POST("/new", h.createUser)          //добавление пользователя +
-			users.DELETE("/delete/:id", h.deleteUser) //удаление пользователя +
-			users.GET("/get/:id", h.getUser)          //инфа а пользователе +
+			users.POST("/new", h.createUser)          
+			users.DELETE("/delete/:id", h.deleteUser) 
+			users.GET("/get/:id", h.getUser)          
 		}
 
-		books := api.Group("/books") //для таблицы книг
+		books := api.Group("/books")
 		{
-			//получение книг
-			books.GET("/all", h.getAllBooks)         //все книги +
-			books.GET("/user/:id", h.getBooksByUser) //все книги одного пользователя +
+			books.GET("/all", h.getAllBooks)         
+			books.GET("/user/:id", h.getBooksByUser) 
+			
+			books.GET("/get/:id", h.getBookById)          
+			books.DELETE("/delete/:id", h.deleteBookById) 
+			books.POST("/new", h.createBook)              
 
-			//операции с одной книгой
-			books.GET("/get/:id", h.getBookById)          //инфа о книге +
-			books.DELETE("/delete/:id", h.deleteBookById) //удаление +
-			books.POST("/new", h.createBook)              //добавление новой книги +
-
-			//для связующей таблицы юзер-книга
-			//функционал выдачи книги пользователю и возврата книги в библиотеку
-			giveAndReturnBook := books.Group("/:book_id/users/:user_id") //сначала book_id, потом user_id
+			giveAndReturnBook := books.Group("/:book_id/users/:user_id") 
 			{
-				giveAndReturnBook.POST("/", h.giveBook)     // пока просто добавляет без логики
-				giveAndReturnBook.DELETE("/", h.returnBook) // пока просто возвращает без логики
+				giveAndReturnBook.POST("/", h.giveBook)     
+				giveAndReturnBook.DELETE("/", h.returnBook) 
 			}
 		}
 	}

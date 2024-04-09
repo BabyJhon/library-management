@@ -2,7 +2,6 @@ package app
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"os"
 	"os/signal"
@@ -60,7 +59,6 @@ func Run() {
 	handlers := handlers.NewHandler(services)
 
 	//HTTP server
-	fmt.Println("start server eshkere")
 
 	srv := new(httpserver.Server)
 
